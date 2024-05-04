@@ -1,92 +1,238 @@
-import React, { useState, useContext,useEffect} from 'react'
-import { AppState } from '../App'
-import { ethers } from 'ethers';
-import { stringify } from 'postcss';
+import React, { useState, useEffect, useContext } from "react";
+import { AppState } from "../App";
+import { ethers } from "ethers";
+import axios from "axios";
 const Manager = () => {
-    const App = useContext(AppState);
-    const [Address, setAddress] = useState();
-    const [target, settarget] = useState();
-    const [Description, setDescription] = useState();
-    const [Balance, setBalance] = useState('');
-    useEffect(() => {
-        const getBal = async () => {
-            try {
-                const Balance = await App.Charitycontract.getContractBalance()
-                setBalance(Balance);
-            } catch (error) {
-                console.log(error);
-            }
-        };
-        getBal();
-    }, []);
-    const Create = async () => {
-        try {
-            
-            const tx = await App.Charitycontract.createRequests(Description, Address, ethers.utils.parseEther(target));
-            console.log(tx)
-            await tx.wait();
-            alert("Created Sucessfull!")
-            setAddress('')
-            settarget('')
-            setDescription('')
-        } catch (error) {
-            // console.log(JSON.stringify(error))
-            const jsonresp = JSON.stringify(error)
-            console.log(jsonresp)
-            const jsonResponseObj = JSON.parse(jsonresp);
-            console.log(jsonResponseObj);
-            if (error.message === "MetaMask Tx Signature: User denied transaction signature.") {
-                alert(" User denied transaction signature.")
-            } else if (error.message === "execution reverted: Only manager can call this function") {
-                alert(" Only manager can call this function")
-            }
-            else {
-                console.log(error.message)
-                alert(jsonResponseObj.reason)
-            }
-        }
-    };
-  return (
-      <div>
-          <section className="text-gray-600 body-font relative">
-              <div className="container px-5 py-10 mx-auto">
-                  <div className="flex flex-col text-center w-full mb-12">
-                      <h1 className="sm:text-3xl text-2xl font-medium title-font mb-0 text-gray-900">Contract Balance -: {(Balance.toString()) / 10 ** 18} ETH</h1>
-                  </div>
-                  <div className="flex flex-col text-center w-full mb-12">
-                      <h1 className="sm:text-3xl text-2xl font-medium title-font mb-4 text-gray-900">Create Request</h1>
-                      <p className="lg:w-2/3 mx-auto leading-relaxed text-base">Here manager of this Charity Contract can create request.</p>
-                  </div>
-                  <div className="lg:w-1/2 md:w-2/3 mx-auto">
-                      <div className="flex flex-wrap -m-2">
-                          <div className="p-2 w-1/2">
-                              <div className="relative">
-                                  <label htmlFor="name" className="leading-7 text-sm text-gray-600">Recipient Address</label>
-                                  <input value={Address} onChange={(e) => setAddress(e.target.value)} type="text"  className="w-full bg-gray-100 bg-opacity-50 rounded border border-gray-300 focus:border-yellow-500 focus:bg-white focus:ring-2 focus:ring-yellow-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"/>
-                              </div>
-                          </div>
-                          <div className="p-2 w-1/2">
-                              <div className="relative">
-                                  <label htmlFor="email" className="leading-7 text-sm text-gray-600">Taget in ETH</label>
-                                  <input value={target} onChange={(e) => settarget(e.target.value)} type="email"  className="w-full bg-gray-100 bg-opacity-50 rounded border border-gray-300 focus:border-yellow-500 focus:bg-white focus:ring-2 focus:ring-yellow-200 text-base outline-none text-gray-700 py-1 px-3 leading-8 transition-colors duration-200 ease-in-out"/>
-                              </div>
-                          </div>
-                          <div className="p-2 w-full">
-                              <div className="relative">
-                                  <label htmlFor="message" className="leading-7 text-sm text-gray-600">Description</label>
-                                  <textarea value={Description} onChange={(e) => setDescription(e.target.value)} id="message" name="message" className="w-full bg-gray-100 bg-opacity-50 rounded border border-gray-300 focus:border-yellow-500 focus:bg-white focus:ring-2 focus:ring-yellow-200 h-32 text-base outline-none text-gray-700 py-1 px-3 resize-none leading-6 transition-colors duration-200 ease-in-out"></textarea>
-                              </div>
-                          </div>
-                          <div className="p-2 w-full">
-                              <button onClick={() => Create()} className="flex mx-auto text-white bg-yellow-500 border-0 py-2 px-8 focus:outline-none hover:bg-yellow-600 rounded text-lg">Submit</button>
-                          </div>
-                 
-                      </div>
-                  </div>
-              </div>
-          </section>
-    </div>
-  )
-}
+  const App = useContext(AppState);
+  const [Data, setData] = useState([]);
+  const [request, setRequest] = useState([]);
+  const [num, setnum] = useState(0);
 
-export default Manager
+  const Fulfilled = async (id, recipient, description, target) => {
+    try {
+      console.log("Request Fulfilled with id:", id);
+      const tx = await App.Charitycontract.fulfillRequest(id);
+      await tx.wait();
+      alert("Request Completed!");
+      const data = {
+        walletAddress: recipient,
+        description: description,
+        target: target,
+      };
+      const res = await axios.post(
+        "https://blockchain-charity-basic-backend.onrender.com/update/complete",
+        data
+      );
+      console.log(res);
+    } catch (e) {
+      console.error("Error donating:", e);
+      alert("Error donating: " + e.message);
+    }
+  };
+
+  async function Approve(description, amountNeeded, recipient, deadline) {
+    try {
+      console.log({
+        description: description,
+        target: amountNeeded,
+        walletAddress: recipient,
+        deadline: deadline,
+      });
+      const tx = await App.Charitycontract.createRequest(
+        description,
+        ethers.utils.parseEther(amountNeeded),
+        recipient,
+        deadline
+      );
+      await tx.wait();
+      console.log(tx);
+      alert("Request created successfully!");
+      const response = await axios.post(
+        "https://blockchain-charity-basic-backend.onrender.com/update/approve",
+        {
+          walletAddress: recipient,
+          description: description,
+          target: amountNeeded,
+        }
+      );
+      console.log(response);
+      setData((prevData) =>
+        prevData.filter(
+          (item) =>
+            item.walletAddress !== recipient &&
+            item.description !== description &&
+            item.target !== amountNeeded
+        )
+      );
+    } catch (error) {
+      console.error("Error creating request:", error);
+      alert("Error creating request: " + error.message);
+    }
+  }
+
+  useEffect(() => {
+    const getProposals = async () => {
+      try {
+        const response = await axios.get(
+          "https://blockchain-charity-basic-backend.onrender.com/unapproved"
+        );
+        const proposals = response.data.data;
+        setData(proposals);
+        console.log(proposals);
+      } catch (error) {
+        console.log(error);
+      }
+    };
+    const getRequests = async () => {
+      try {
+        const Count = await App.Charitycontract.numRequests();
+        let proposals = [];
+        for (let i = 0; i < Count; i++) {
+          const Proposal = await App.Charitycontract.requests(i);
+
+          proposals.push(Proposal);
+        }
+        setRequest(proposals);
+      } catch (error) {
+        console.log(error);
+      }
+    };
+    getRequests();
+    getProposals();
+  }, [num]);
+
+  return (
+    <div>
+      <div className="container px-5 py-5 mx-auto">
+        <h1 className="text-black font-bold text-2xl pl-4">
+          All Pending Requests
+        </h1>
+
+        <div className="grid sm:grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
+          {Data && Data?.length !== 0 ? (
+            Data.map((e, id) => {
+              return (
+                <div className="p-4">
+                  <div className="h-full bg-gray-100 bg-opacity-75 px-8 pt-16 pb-24 rounded-lg overflow-hidden text-center relative">
+                    <h2 className="tracking-widest -ml-5 text-15px title-font font-medium text-gray-900 mb-1">
+                      Recipient Address
+                    </h2>
+                    <h2 className="tracking-widest -ml-5 text-base title-font font-medium text-gray-900 mb-1">
+                      {e.walletAddress}
+                    </h2>
+                    <h1 className="title-font sm:text-xl text-lg font-medium text-gray-900 mb-3"></h1>
+                    <p className="leading-relaxed mt-5 mb-5">{e.description}</p>
+                    <div className="text-center mt-2 leading-none flex justify-center absolute bottom-0 left-0 w-full py-4">
+                      <span className="text-black font-bold mr-1 inline-flex items-center leading-none text-sm pr-1 py-1 border-r-2 border-gray-200">
+                        Deadline
+                      </span>
+                      <span className="text-black font-bold  inline-flex items-center leading-none text-sm mr-4">
+                        {Number(e.deadline.toString())}
+                      </span>
+                      <span className="text-black font-bold mr-1 inline-flex items-center leading-none text-sm pr-1 py-1 border-r-2 border-gray-200">
+                        Target
+                      </span>
+                      <span className="text-black font-bold  inline-flex items-center leading-none text-sm">
+                        {Number(e.target.toString())} ETH {}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-center absolute bottom-10 left-0 w-full py-4">
+                      {/* <button onClick={() => Vote(Number(e.uniqueid.toString()))} class="flex mx-auto mt-10 text-white bg-yellow-400 border-0 py-2 px-8 focus:outline-none hover:bg-yellow-600 rounded">Vote</button> */}
+                      <button
+                        onClick={() =>
+                          Approve(
+                            e.description,
+                            e.target,
+                            e.walletAddress,
+                            Number(e.deadline.toString())
+                          )
+                        }
+                        className="flex mx-auto mt-10 text-white bg-yellow-400 border-0 py-2 px-8 focus:outline-none hover:bg-yellow-600 rounded"
+                      >
+                        Approve
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div class="flex items-center pl-4 h-1/2">
+              <div class="title-font sm:text-lg text-lg font-medium text-gray-900 mt-8">
+                No Pending Requests.
+              </div>
+            </div>
+          )}
+        </div>
+        <h1 className="text-black font-bold text-2xl pl-4">
+          All Donation Requests
+        </h1>
+
+        <div className="grid sm:grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
+          {request.map((e, index) => (
+            <div key={index} className="p-4">
+              <div className="h-full bg-gray-100 bg-opacity-75 pt-8 pb-16 rounded-lg overflow-hidden text-center relative">
+                <h2 className="tracking-widest text-15px title-font font-medium text-gray-900 mb-1">
+                  Recipient Address
+                </h2>
+                <h2 className="tracking-widest text-base title-font font-medium text-gray-900 mb-1">
+                  {e.recipient}
+                </h2>
+                <p className="leading-relaxed mt-5 mb-5">{e.description}</p>
+                <div className="text-center mt-2 leading-none flex justify-center absolute bottom-0 left-0 w-full py-4">
+                  <span className="text-black font-bold mr-1 inline-flex items-center leading-none text-sm pr-1 py-1 border-r-2 border-gray-200">
+                    Deadline
+                  </span>
+                  <span className="text-black font-bold inline-flex items-center leading-none mr-4 text-sm">
+                    {Number(e.deadline.toString())}
+                  </span>
+                  <span className="text-black font-bold mr-1 inline-flex items-center leading-none text-sm pr-1 py-1 border-r-2 border-gray-200">
+                    Target
+                  </span>
+                  <span className="text-black font-bold inline-flex items-center leading-none text-sm mr-4">
+                    {Number(e.amountNeeded.toString()) / 10 ** 18} ETH
+                  </span>
+                  <span className="text-black font-bold mr-1 inline-flex items-center leading-none text-sm pr-1 py-1 border-r-2 border-gray-200">
+                    Raised
+                  </span>
+                  <span className="text-black font-bold inline-flex items-center leading-none text-sm">
+                    {Number(e.amountRaised.toString()) / 10 ** 18} ETH
+                  </span>
+                </div>
+                {e.completed !== true ? (
+                  <div className="flex flex-col justify-center items-center w-full mt-4">
+                    <div className="flex gap-x-8">
+                      {localStorage.getItem("Address") ===
+                        "0xca4ca72400622883ddf52d05b05a4f20d1fe0ef5" && (
+                        <button
+                          onClick={() =>
+                            Fulfilled(
+                              index,
+                              e.recipient,
+                              e.description,
+                              e.amountNeeded
+                            )
+                          }
+                          className="mt-4 text-white bg-green-400 border-0 py-2 px-6 focus:outline-none hover:bg-green-600 rounded"
+                        >
+                          Complete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-green-400">
+                    This request was completed successfully
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Manager;

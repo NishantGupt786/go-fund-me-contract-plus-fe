@@ -3,46 +3,11 @@ import { AppState } from "../App";
 import { ethers } from "ethers";
 import axios from "axios";
 
-const Request = () => {
+const MyReqs = () => {
   const App = useContext(AppState);
   const [Data, setData] = useState([]);
   const [num, setnum] = useState(0);
   const [donationAmount, setDonationAmount] = useState(0);
-
-  const Fulfilled = async (id, recipient, description, target) => {
-    try {
-      console.log("Request Fulfilled with id:", id);
-      const tx = await App.Charitycontract.fulfillRequest(id);
-      await tx.wait();
-      alert("Request Completed!");
-      const data = {
-        walletAddress: recipient,
-        description: description,
-        target: target,
-      };
-      const res = await axios.post(
-        "https://blockchain-charity-basic-backend.onrender.com/update/complete",
-        data
-      );
-      console.log(res);
-    } catch (e) {
-      console.error("Error donating:", e);
-      alert("Error donating: " + e.message);
-    }
-  };
-  const Donate = async (id, amount) => {
-    try {
-      const amountInWei = ethers.utils.parseEther(amount);
-      console.log(id);
-      const tx = await App.Charitycontract.donate(id, { value: amountInWei });
-      await tx.wait();
-      alert("Donated Successfully!");
-      setnum(num + 1);
-    } catch (error) {
-      console.error("Error donating:", error);
-      alert("Error donating: " + error.message);
-    }
-  };
 
   useEffect(() => {
     const getProposals = async () => {
@@ -51,9 +16,10 @@ const Request = () => {
         let proposals = [];
         for (let i = 0; i < Count; i++) {
           const Proposal = await App.Charitycontract.requests(i);
-          console.log(Proposal.completed);
-          console.log(Proposal);
-          proposals.push(Proposal);
+
+          if (Proposal.recipient.toLowerCase() === localStorage.getItem("Address")) {
+            proposals.push(Proposal);
+          }
         }
         setData(proposals);
       } catch (error) {
@@ -99,41 +65,12 @@ const Request = () => {
                 </div>
                 {e.completed !== true ? (
                   <div className="flex flex-col justify-center items-center w-full mt-4">
-                    <input
-                      type="number"
-                      className="rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 py-3 px-2 w-3/4"
-                      placeholder="Enter amount to donate"
-                      onChange={(e) => setDonationAmount(e.target.value)}
-                    />
-                    <div className="flex gap-x-8">
-                      <button
-                        onClick={() => Donate(id, donationAmount)}
-                        className="mt-4 text-white bg-yellow-400 border-0 py-2 px-8 focus:outline-none hover:bg-yellow-600 rounded"
-                      >
-                        Donate
-                      </button>
-                      {localStorage.getItem("Address") ===
-                        "0xca4ca72400622883ddf52d05b05a4f20d1fe0ef5" && (
-                        <button
-                          onClick={() =>
-                            Fulfilled(
-                              id,
-                              e.recipient,
-                              e.description,
-                              e.amountNeeded
-                            )
-                          }
-                          className="mt-4 text-white bg-green-400 border-0 py-2 px-6 focus:outline-none hover:bg-green-600 rounded"
-                        >
-                          Complete
-                        </button>
-                      )}
-                    </div>
+                    <p>This request is still active</p>
                   </div>
                 ) : (
                   <div className="text-green-400 pt-5">
                     <p>This Donation has reached its target amount.</p>
-                    <p>Thank you for donating :)</p>
+                    {/* <p>Thank you for donating :)</p> */}
                   </div>
                 )}
               </div>
@@ -151,4 +88,4 @@ const Request = () => {
   );
 };
 
-export default Request;
+export default MyReqs;

@@ -9,10 +9,10 @@ function App() {
   useEffect(() => {
     const loadEthereum = async () => {
       if (typeof window.ethereum !== 'undefined') { 
-        const ContractAddress = "0x95760401fa432c76e79860533147b504cf85c11b"
+        const ContractAddress = "0x549701c172BeDF7991368eC11b13513a5DF83679"
         const provider = new ethers.providers.Web3Provider(window.ethereum);
         const signer = provider.getSigner();
-        const CharityContract = new ethers.Contract(ContractAddress, CharityDAO.output.abi, signer);
+        const CharityContract = new ethers.Contract(ContractAddress, CharityDAO, signer);
         setCharitycontract(CharityContract)
       } else {
         console.log('No Ethereum provider found. Install Metamask.');
